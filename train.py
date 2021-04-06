@@ -22,10 +22,10 @@ os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 def getSchedu(schedu, optimizer):
     if schedu=='default':
-            scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.1, patience=1)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.1, patience=1)
     elif 'step' in schedu:
         step_size = int(schedu.strip().split('-')[1])
-        gamma = int(schedu.strip().split('-')[2])
+        gamma = float(schedu.strip().split('-')[2])
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma, last_epoch=-1)
     elif 'SGDR' in schedu: 
         T_0 = int(schedu.strip().split('-')[1])
@@ -53,19 +53,24 @@ def train(data_loader, epoch, total_epoch, model, criterion, device):
     # switch to evaluate mode
     model.train()
 
-    for batch_idx, (img, labels, file_name) in enumerate(data_loader):
+    loc_loss = 0
+    conf_loss = 0
+    trained_items = 0
+    for batch_idx, (img, labels, obj_count, file_name) in enumerate(data_loader):
         # print("\r",str(i)+"/"+str(test_loader.__len__()),end="",flush=True)
-
+        trained_items += img.shape[0]#batchsize
         #print(file_name)
         img = img.to(device)
         labels = labels.to(device)
 
+
+        #print("train: --- ", img.shape, labels.shape)
         confidence, location = model(img)
 
         prior_boxes = generateProirBox()
         prior_boxes = torch.from_numpy(prior_boxes).to(device) #[1, 8732, 4] [cx, cy, w, h]
-        loss = criterion(confidence, location, prior_boxes, labels)
-
+        loss_l, loss_c = criterion(confidence, location, prior_boxes, labels, obj_count)
+        loss = loss_l + loss_c
 
         loss.backward() #计算梯度
 
@@ -75,18 +80,26 @@ def train(data_loader, epoch, total_epoch, model, criterion, device):
         # batch_pred_score = pred_score.data.cpu().numpy()#.tolist()
         # print(batch_pred_score.shape)
         # print(np.max(batch_pred_score[0]), np.argmax(batch_pred_score[0]))
-
-        if batch_idx % 10 == 0:
+        #print(loss_l, loss_c)
+        # print(loss_l.item())
+        loc_loss += loss_l.item()
+        # print(loss_l.item())
+        # print("----")
+        conf_loss += loss_c.item()
+        
+        if batch_idx % 1 == 0:
             print('\r',
-                '{}/{} [{}/{} ({:.0f}%)] -  loss: {:.4f} '.format(
-                epoch+1, total_epoch, batch_idx * len(img), len(data_loader.dataset),
+                '{}/{} [{}/{} ({:.0f}%)] -  loss_loc: {:.4f} loss_conf: {:.4f} '.format(
+                epoch+1, total_epoch, 
+                batch_idx * img.shape[0], len(data_loader.dataset),
                 100. * batch_idx / len(data_loader), 
-                loss.item(),train_acc), 
+                loc_loss/trained_items,
+                conf_loss/trained_items), 
                 end="",flush=True)
             # ETA   it/s
 
 
-    return 1
+    return loc_loss/trained_items+conf_loss/trained_items
 
 
 def getTrainValNames(name_file, split_ratio):
@@ -116,7 +129,7 @@ if __name__ == '__main__':
     device = torch.device("cuda")
     kwargs = {'num_workers': 1, 'pin_memory': True}
 
-    batchsize = 1
+    batchsize = 16
     epochs = 30
 
     ### 2.data
@@ -137,19 +150,23 @@ if __name__ == '__main__':
     model = SSD(classes,  pretrained_path).to(device)
     #print(model)
     #b
-    learning_rate = 0.01
+    learning_rate = 0.001
     weight_decay = 0.0001
     optimizer = getOptimizer('adam', model, learning_rate, weight_decay)
-    scheduler = getSchedu('default', optimizer)
-    criterion = myLoss().cuda()
+    scheduler = getSchedu('step-4-0.8', optimizer)
+    criterion = myLoss(num_classes=classes+1, use_gpu=True).cuda()
 
     ### 4. train
     for epoch in range(epochs):
 
-        train(train_loader, epoch, epochs, model, criterion, device)
+        train_loss = train(train_loader, epoch, epochs, model, criterion, device)
 
         scheduler.step()
 
+        save_path = './data/save/ssd_e%d_%.5f.pth' % (epoch,train_loss)
+        torch.save(model.state_dict(), save_path)
+
+        print('\n')
 
     del model
     gc.collect()

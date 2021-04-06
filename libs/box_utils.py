@@ -115,57 +115,6 @@ def matchPriorBox(prior_boxes, labels, iou_threshold=0.5):
     return prior_boxes_matched
 
 
-def jaccardOverlap(box1, box2):
-    """
-        box: [x0, y0, x1, y1]
-        A ∩ B / A ∪ B = A ∩ B / (area(A) + area(B) - A ∩ B)
-    """
-    #print(box1, box2)
-    min_x1 = torch.min(box1[2], box2[2])
-    max_x0 = torch.max(box1[0], box2[0])
-
-    min_y1 = torch.min(box1[3], box2[3])
-    max_y0 = torch.max(box1[1], box2[1])
-
-    inter = torch.clamp((min_x1 - max_x0)*(min_y1 - max_y0), min=0)
-
-    area_1 = (box1[2]-box1[0])*(box1[3]-box1[1])
-    area_2 = (box2[2]-box2[0])*(box2[3]-box2[1])
-    union = area_1 + area_2 - inter
-    return inter / union  
-
-
-
-
-
-################
-
-
-
-def point_form(boxes):
-    """ Convert prior_boxes to (xmin, ymin, xmax, ymax)
-    representation for comparison to point form ground truth data.
-    Args:
-        boxes: (tensor) center-size default boxes from priorbox layers.
-    Return:
-        boxes: (tensor) Converted xmin, ymin, xmax, ymax form of boxes.
-    """
-    return torch.cat((boxes[:, :2] - boxes[:, 2:]/2,     # xmin, ymin
-                     boxes[:, :2] + boxes[:, 2:]/2), 1)  # xmax, ymax
-
-
-def center_size(boxes):
-    """ Convert prior_boxes to (cx, cy, w, h)
-    representation for comparison to center-size form ground truth data.
-    Args:
-        boxes: (tensor) point_form boxes
-    Return:
-        boxes: (tensor) Converted xmin, ymin, xmax, ymax form of boxes.
-    """
-    return torch.cat((boxes[:, 2:] + boxes[:, :2])/2,  # cx, cy
-                     boxes[:, 2:] - boxes[:, :2], 1)  # w, h
-
-
 def intersect(box_a, box_b):
     """ We resize both tensors to [A,B,2] without new malloc:
     [A,2] -> [A,1,2] -> [A,B,2]
@@ -179,6 +128,7 @@ def intersect(box_a, box_b):
     """
     A = box_a.size(0)
     B = box_b.size(0)
+
     max_xy = torch.min(box_a[:, 2:].unsqueeze(1).expand(A, B, 2),
                        box_b[:, 2:].unsqueeze(0).expand(A, B, 2))
     min_xy = torch.max(box_a[:, :2].unsqueeze(1).expand(A, B, 2),
@@ -208,16 +158,53 @@ def jaccard(box_a, box_b):
     return inter / union  # [A,B]
 
 
+def pointMidToCorner(boxes):
+    """ Convert prior_boxes to (xmin, ymin, xmax, ymax)
+    representation for comparison to point form ground truth data.
+    Args:
+        boxes: (tensor) center-size default boxes from priorbox layers.
+    Return:
+        boxes: (tensor) Converted xmin, ymin, xmax, ymax form of boxes.
+    """
+    return torch.cat((boxes[:, :2] - boxes[:, 2:]/2,     # xmin, ymin
+                     boxes[:, :2] + boxes[:, 2:]/2), 1)  # xmax, ymax
+
+
+################
+
+
+
+
+
+
+def center_size(boxes):
+    """ Convert prior_boxes to (cx, cy, w, h)
+    representation for comparison to center-size form ground truth data.
+    Args:
+        boxes: (tensor) point_form boxes
+    Return:
+        boxes: (tensor) Converted xmin, ymin, xmax, ymax form of boxes.
+    """
+    return torch.cat((boxes[:, 2:] + boxes[:, :2])/2,  # cx, cy
+                     boxes[:, 2:] - boxes[:, :2], 1)  # w, h
+
+
+
+
+
+
+
+
 def match(threshold, truths, priors, variances, labels, loc_t, conf_t, idx):
     """Match each prior box with the ground truth box of the highest jaccard
     overlap, encode the bounding boxes, then return the matched indices
     corresponding to both confidence and location preds.
     Args:
         threshold: (float) The overlap threshold used when mathing boxes.
-        truths: (tensor) Ground truth boxes, Shape: [num_obj, num_priors].
+        truths: (tensor) Ground truth boxes, Shape: [num_obj, 4].
         priors: (tensor) Prior boxes from priorbox layers, Shape: [n_priors,4].
         variances: (tensor) Variances corresponding to each prior coord,
-            Shape: [num_priors, 4].
+            Shape: [1, 2].
         labels: (tensor) All the class labels for the image, Shape: [num_obj].
         loc_t: (tensor) Tensor to be filled w/ endcoded location targets.
         conf_t: (tensor) Tensor to be filled w/ matched indices for conf preds.
@@ -227,14 +214,15 @@ def match(threshold, truths, priors, variances, labels, loc_t, conf_t, idx):
     """
     # jaccard index
     overlaps = jaccard(
-        truths,
-        point_form(priors)
-    )
+                        truths,
+                        pointMidToCorner(priors)
+                        )
     # (Bipartite Matching)
     # [1,num_objects] best prior for each ground truth
     best_prior_overlap, best_prior_idx = overlaps.max(1, keepdim=True)
     # [1,num_priors] best ground truth for each prior
     best_truth_overlap, best_truth_idx = overlaps.max(0, keepdim=True)
+
     best_truth_idx.squeeze_(0)
     best_truth_overlap.squeeze_(0)
     best_prior_idx.squeeze_(1)

@@ -1,6 +1,9 @@
 # Pytorch-SSD-And-Extension
 
-
+###
+Test on:
+python3
+torch 1.7.0
 
 
 ### To Do

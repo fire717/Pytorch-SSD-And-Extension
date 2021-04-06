@@ -14,7 +14,7 @@ import platform
 
 import xml.etree.ElementTree as xmlET
 
-CLASS_NAME_LIST = ['__background__', # always index 0
+CLASS_NAME_LIST = [#'__background__', # always index 0
                     'aeroplane',
                     'bicycle', 
                     'bird', 
@@ -204,9 +204,10 @@ class DatasetTrainVal(Dataset):
 
         labels = readXML(xml_path)
 
+        #print(np.array(labels).shape)
         # print(img.shape, torch.from_numpy(np.array(labels)).shape)
-        # bb
-        return img, torch.from_numpy(np.array(labels)), name
+        #bb
+        return img, torch.from_numpy(np.array(labels)), len(labels), name
         
     def __len__(self):
         return len(self.data_list)
@@ -265,6 +266,40 @@ class DatasetTest(Dataset):
 
 ###### 3. get data loader 
 
+def collate_fn(batch_data):
+    """
+    默认的batch合并函数是直接把不同item直接拼接
+    但是目标检测中的label，不同图片的目标框数量不同
+    直接使用就会报错 stack expects each tensor to be equal size, 
+    but got [2, 5] at entry 0 and [11, 5] at entry 1
+
+    所以需要直接实现合并的函数
+    """ 
+    # print(len(batch_data)) #=batchsize
+    # print(len(batch_data[0])) #= len(return thing)  here is 3 (img, torch.from_numpy(np.array(labels)), name)
+    # print(batch_data[0][0].shape)  # [3,300,300]
+    # print(batch_data[0][1].shape)  # [n_obj, 5]
+    # print(batch_data[0][2])        #name
+
+    # max_obj = max([x[1].shape[0] for x in batch_data])
+    # print(batch_data[0][1].shape, batch_data[1][1].shape, max_obj)
+
+    def _padBatchBox(box_tensor_list):
+        max_obj = max([x.shape[0] for x in box_tensor_list])
+
+        # print(box_tensor_list[0].shape, box_tensor_list[1].shape)
+        box_tensor_list_with_same_shape = [torch.cat((x, torch.Tensor([[0]*x.shape[1]]*(max_obj-x.shape[0])))) for x in box_tensor_list]
+        # print(box_tensor_list_with_same_shape[0].shape, box_tensor_list_with_same_shape[1].shape)
+        # b
+        return box_tensor_list_with_same_shape
+
+
+    batch_img = torch.stack([x[0] for x in batch_data], 0)
+    batch_box = torch.stack(_padBatchBox([x[1] for x in batch_data]), 0)
+    batch_len_obj = [x[2] for x in batch_data]
+    batch_name = [x[3] for x in batch_data]
+    return batch_img, batch_box, batch_len_obj, batch_name
+
 
 def getDataLoader(mode, voc_dir, data_list, img_size, batch_size, kwargs):
     if platform.system() == "Windows":
@@ -284,6 +319,7 @@ def getDataLoader(mode, voc_dir, data_list, img_size, batch_size, kwargs):
                                                             T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
                                                         ])
                                                     ),
+                                                    collate_fn = collate_fn,
                                                     batch_size=batch_size, 
                                                     shuffle=True, 
                                                     **kwargs
