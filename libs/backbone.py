@@ -6,6 +6,7 @@ import torch.nn as nn
 
 import numpy as np
 import cv2
+import torch.nn.init as init
 
 from libs.utils import copyStateDict
 import collections
@@ -41,8 +42,8 @@ class VGG16(nn.Module):
             nn.Linear(4096, num_classes),
         )
 
-        if init_weights:
-            self._initialize_weights()
+        # if init_weights:
+        #     self._initialize_weights()
 
 
     # def buildFeatures1(self):
@@ -260,18 +261,18 @@ class VGG16(nn.Module):
         x = self.classifier(x)
         return x
 
-    def _initialize_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, 0, 0.01)
-                nn.init.constant_(m.bias, 0)
+    # def _initialize_weights(self):
+    #     for m in self.modules():
+    #         if isinstance(m, nn.Conv2d):
+    #             nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+    #             if m.bias is not None:
+    #                 nn.init.constant_(m.bias, 0)
+    #         elif isinstance(m, nn.BatchNorm2d):
+    #             nn.init.constant_(m.weight, 1)
+    #             nn.init.constant_(m.bias, 0)
+    #         elif isinstance(m, nn.Linear):
+    #             nn.init.normal_(m.weight, 0, 0.01)
+    #             nn.init.constant_(m.bias, 0)
 
 
 
@@ -335,14 +336,15 @@ class BackboneVGG16(nn.Module):
 
 
 class SSD(nn.Module):
-    def __init__(self, num_class, pretrained_path):
+    def __init__(self, num_class, pretrained_path=None):
         super(SSD, self).__init__()
 
         self.num_class = num_class
         
 
         backbone = VGG16()
-        backbone.load_state_dict(torch.load(pretrained_path),strict=True) 
+        if pretrained_path:
+            backbone.load_state_dict(torch.load(pretrained_path),strict=True) 
 
         # print(backbone)
 
@@ -362,6 +364,7 @@ class SSD(nn.Module):
                                     nn.ReLU(inplace=True)
                                     )
 
+        #额外新增的4个特征层
         self.features_layer3 = nn.Sequential(
                                     nn.Conv2d(1024, 256, kernel_size=1),
                                     nn.ReLU(inplace=True),
@@ -389,7 +392,7 @@ class SSD(nn.Module):
                                     nn.Conv2d(128, 256, kernel_size=3, stride=1),
                                     nn.ReLU(inplace=True),
                                     )
-
+        self.L2Norm = L2Norm(512, 20)
 
         self.classifier_layer1, self.location_layer1 = self.buildHeader(self.num_prior_box[0], self.feature_channel[0])
         self.classifier_layer2, self.location_layer2 = self.buildHeader(self.num_prior_box[1], self.feature_channel[1])
@@ -414,23 +417,24 @@ class SSD(nn.Module):
     def buildHeader(self, num_prior_box, feature_channel):
         classifier_layer = nn.Sequential(
                                     nn.Conv2d(feature_channel, num_prior_box*(self.num_class+1), kernel_size=3, padding=1),
-                                    nn.ReLU(inplace=True),
+                                    # nn.ReLU(inplace=True),
                                     )
         location_layer = nn.Sequential(
                                     nn.Conv2d(feature_channel, num_prior_box*4, kernel_size=3, padding=1),
-                                    nn.ReLU(inplace=True),
+                                    # nn.ReLU(inplace=True),
                                     )
         return classifier_layer, location_layer
         
     def forward(self, img):        
         features1 = self.features_layer1(img) # [n, 512, 38, 38]
+        #https://blog.csdn.net/loovelj/article/details/106556851
         features2 = self.features_layer2(features1) # [n, 1024, 19, 19]
         features3 = self.features_layer3(features2) # [n, 512, 10, 10]
         features4 = self.features_layer4(features3) # [n, 256, 5, 5]
         features5 = self.features_layer5(features4) # [n, 256, 3, 3]
         features6 = self.features_layer6(features5) # [n, 256, 1, 1]
 
-
+        features1 = self.L2Norm(features1)
         classifier1 = self.classifier_layer1(features1)
         classifier1 = classifier1.permute(0, 2, 3, 1).contiguous()
         classifier1 = classifier1.view(classifier1.size(0),-1,classifier1.size(3)//4)
@@ -496,6 +500,33 @@ class SSD(nn.Module):
         return confidence, location
 
 
+
+
+def funcL2Norm(inputs):
+    eps = 1e-10
+    norm = inputs.pow(2).sum(dim=1, keepdim=True).sqrt()+eps
+    out = torch.div(inputs,norm)
+    return out
+
+
+class L2Norm(nn.Module):
+    def __init__(self,n_channels, scale):
+        super(L2Norm,self).__init__()
+        self.n_channels = n_channels
+        self.gamma = scale or None
+        self.eps = 1e-10
+        self.weight = nn.Parameter(torch.Tensor(self.n_channels))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        init.constant_(self.weight,self.gamma)
+
+    def forward(self, x):
+        norm = x.pow(2).sum(dim=1, keepdim=True).sqrt()+self.eps
+        #x /= norm
+        x = torch.div(x,norm)
+        out = self.weight.unsqueeze(0).unsqueeze(2).unsqueeze(3).expand_as(x) * x
+        return out
 
 
 

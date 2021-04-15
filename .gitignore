@@ -131,3 +131,5 @@ dmypy.json
 
 /data/models
 /data/save
+/data/test
+/data/output

@@ -365,3 +365,116 @@ def nms(boxes, scores, overlap=0.5, top_k=200):
         # keep only elements with an IoU <= overlap
         idx = idx[IoU.le(overlap)]
     return keep, count
+
+
+def showAnchorBox(anchors):
+    #可视化anchor box
+    colors = [(255,0,0),
+              (0,255,0),
+              (0,0,255),
+              (255,255,0),
+              (255,0,255),
+              (0,255,255)]
+    size = 3000
+    #为了看的清楚 用比较大的尺寸可视化画框
+
+    
+    #print(anchors)
+    # print(anchors[2000:2004])
+    # print(anchors[5776+600:5776+606])
+    print(anchors.shape)
+    #38*38*4+19*19*6+10*10*6+5*5*6+3*3*4+1*1*4=8732
+
+    #第一个特征层 38
+    img = np.ones((size,size,3))
+    for i,anchor in enumerate(anchors[2000:2000+4]):
+        cx = anchor[0]*size
+        cy = anchor[1]*size
+        w = anchor[2]*size
+        h = anchor[3]*size
+        x0 = int(cx - w/2)
+        y0 = int(cy - h/2)
+        x1 = int(x0+w)
+        y1 = int(y0+h)
+        cv2.rectangle(img,(x0,y0),(x1,y1),colors[i],18-i*3)
+    cv2.imwrite('img1.jpg', img)
+
+    #第二个特征层 19
+    img = np.ones((size,size,3))
+    for i,anchor in enumerate(anchors[5776+600:5776+606]):
+        cx = anchor[0]*size
+        cy = anchor[1]*size
+        w = anchor[2]*size
+        h = anchor[3]*size
+        x0 = int(cx - w/2)
+        y0 = int(cy - h/2)
+        x1 = int(x0+w)
+        y1 = int(y0+h)
+        cv2.rectangle(img,(x0,y0),(x1,y1),colors[i],18-i*3)
+    cv2.imwrite('img2.jpg', img)
+
+    #第三个特征层 10
+    img = np.ones((size,size,3))
+    for i,anchor in enumerate(anchors[7942+330:7942+336]):
+        cx = anchor[0]*size
+        cy = anchor[1]*size
+        w = anchor[2]*size
+        h = anchor[3]*size
+        x0 = int(cx - w/2)
+        y0 = int(cy - h/2)
+        x1 = int(x0+w)
+        y1 = int(y0+h)
+        cv2.rectangle(img,(x0,y0),(x1,y1),colors[i],18-i*3)
+    cv2.imwrite('img3.jpg', img)
+
+    #第四个特征层 5
+    img = np.ones((size,size,3))
+    for i,anchor in enumerate(anchors[8542+72:8542+78]):
+        cx = anchor[0]*size
+        cy = anchor[1]*size
+        w = anchor[2]*size
+        h = anchor[3]*size
+        x0 = int(cx - w/2)
+        y0 = int(cy - h/2)
+        x1 = int(x0+w)
+        y1 = int(y0+h)
+        cv2.rectangle(img,(x0,y0),(x1,y1),colors[i],18-i*3)
+    cv2.imwrite('img4.jpg', img)
+
+    #第五个特征层 3
+    img = np.ones((size,size,3))
+    for i,anchor in enumerate(anchors[8692+16:8692+20]):
+        cx = anchor[0]*size
+        cy = anchor[1]*size
+        w = anchor[2]*size
+        h = anchor[3]*size
+        x0 = int(cx - w/2)
+        y0 = int(cy - h/2)
+        x1 = int(x0+w)
+        y1 = int(y0+h)
+        cv2.rectangle(img,(x0,y0),(x1,y1),colors[i],18-i*3)
+    cv2.imwrite('img5.jpg', img)
+
+    #第六个特征层 1
+    img = np.ones((size,size,3))
+    for i,anchor in enumerate(anchors[8728+0:8728+4]):
+        cx = anchor[0]*size
+        cy = anchor[1]*size
+        w = anchor[2]*size
+        h = anchor[3]*size
+        x0 = int(cx - w/2)
+        y0 = int(cy - h/2)
+        x1 = int(x0+w)
+        y1 = int(y0+h)
+        cv2.rectangle(img,(x0,y0),(x1,y1),colors[i],18-i*3)
+    cv2.imwrite('img6.jpg', img)
+
+
+if __name__ == "__main__":
+
+    import cv2
+
+    anchors = generateProirBox()
+    showAnchorBox(anchors)
+
+    

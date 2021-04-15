@@ -5,7 +5,7 @@ import cv2
 import random
 
 import torch.optim as optim
-
+# import gc
 
 from libs.backbone import BackboneVGG16, SSD
 from libs.data import getDataLoader
@@ -16,7 +16,7 @@ from libs.box_utils import generateProirBox
 
 import os
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 
 
 
@@ -53,13 +53,18 @@ def train(data_loader, epoch, total_epoch, model, criterion, device):
     # switch to evaluate mode
     model.train()
 
-    loc_loss = 0
-    conf_loss = 0
-    trained_items = 0
+    # loc_loss = 0
+    # conf_loss = 0
+    # trained_items = 0
+    #print(len(data_loader.dataset), len(data_loader))#5011 209
+    #b
     for batch_idx, (img, labels, obj_count, file_name) in enumerate(data_loader):
         # print("\r",str(i)+"/"+str(test_loader.__len__()),end="",flush=True)
-        trained_items += img.shape[0]#batchsize
+        # trained_items += img.shape[0]#batchsize、
         #print(file_name)
+        # print(batch_idx ,img.shape[0])
+        # b
+
         img = img.to(device)
         labels = labels.to(device)
 
@@ -82,42 +87,28 @@ def train(data_loader, epoch, total_epoch, model, criterion, device):
         # print(np.max(batch_pred_score[0]), np.argmax(batch_pred_score[0]))
         #print(loss_l, loss_c)
         # print(loss_l.item())
-        loc_loss += loss_l.item()
+        # loc_loss += loss_l.item()
         # print(loss_l.item())
         # print("----")
-        conf_loss += loss_c.item()
-        
+        # conf_loss += loss_c.item()
+        total_loss = loss_l.item()+loss_c.item()
+
         if batch_idx % 1 == 0:
             print('\r',
-                '{}/{} [{}/{} ({:.0f}%)] -  loss_loc: {:.4f} loss_conf: {:.4f} '.format(
+                '{}/{} [{}/{} ({:.0f}%)] - loss: {:.4f}  loss_loc: {:.4f} loss_conf: {:.4f} '.format(
                 epoch+1, total_epoch, 
                 batch_idx * img.shape[0], len(data_loader.dataset),
                 100. * batch_idx / len(data_loader), 
-                loc_loss/trained_items,
-                conf_loss/trained_items), 
+                total_loss,
+                loss_l.item(),
+                loss_c.item()), 
                 end="",flush=True)
             # ETA   it/s
 
 
-    return loc_loss/trained_items+conf_loss/trained_items
+    return total_loss
 
 
-def getTrainValNames(name_file, split_ratio):
-
-    with open(name_file, 'r') as f:
-        names = f.readlines()
-    print(len(names))
-    names = [x.strip() for x in names]
-    # print(names[:3])
-    random.shuffle(names)
-    # print(names[:3])
-
-    train_count = int(len(names)*(1-split_ratio))
-    
-    train_names = names[:train_count]
-    val_names = names[train_count:]
-    
-    return train_names, val_names
 
 
 if __name__ == '__main__':
@@ -129,18 +120,25 @@ if __name__ == '__main__':
     device = torch.device("cuda")
     kwargs = {'num_workers': 1, 'pin_memory': True}
 
-    batchsize = 16
-    epochs = 30
+    batchsize = 24
+    epochs = 300
 
     ### 2.data
-    voc_dir = "../data/VOC2007/trainval/"
-    name_file = os.path.join(voc_dir, "ImageSets/Main/trainval.txt")
-    train_names,val_names = getTrainValNames(name_file, split_ratio = 0.05)
-    train_loader = getDataLoader("train", voc_dir, train_names, 300, batchsize, kwargs)
+    voc_dir = "../data/VOCdevkit/"
+    data_sets = ['VOC2007']
+
+    # name_file = []
+    # for data_set in data_sets:
+    #     name_file.extend([os.path.join(voc_dir, data_set, "ImageSets/Main/trainval.txt")])
+    #print(name_file)
+    # train_names,val_names = getTrainValNames(name_file, split_ratio = 0.05)
+    # train_loader,val_loader = getDataLoader("trainval", voc_dir, data_sets, 300, batchsize, kwargs)
+    # print("len train_loader: ", len(train_loader), len(val_loader))
+    train_loader = getDataLoader("train", voc_dir, data_sets, 300, batchsize, kwargs)
     print("len train_loader: ", len(train_loader))
 
-    val_loader = getDataLoader("val", voc_dir, val_names, 300, 1, kwargs)
-    print("len val_loader: ", len(val_loader))
+    # val_loader = getDataLoader("val", voc_dir, val_names, 300, 1, kwargs)
+    # print("len val_loader: ", len(val_loader))
 
 
     ### 3.model
@@ -148,11 +146,14 @@ if __name__ == '__main__':
     classes = 20
     pretrained_path = "./data/models/vgg16-397923af.pth"
     model = SSD(classes,  pretrained_path).to(device)
+
+    # model_path = "data/save/ssd_e62_1.91127.pth"
+    # model.load_state_dict(torch.load(model_path))
     #print(model)
     #b
     learning_rate = 0.001
     weight_decay = 0.0001
-    optimizer = getOptimizer('adam', model, learning_rate, weight_decay)
+    optimizer = getOptimizer('SGD', model, learning_rate, weight_decay)
     scheduler = getSchedu('step-4-0.8', optimizer)
     criterion = myLoss(num_classes=classes+1, use_gpu=True).cuda()
 
@@ -168,6 +169,6 @@ if __name__ == '__main__':
 
         print('\n')
 
-    del model
-    gc.collect()
-    torch.cuda.empty_cache()
+    # del model
+    # gc.collect()
+    # torch.cuda.empty_cache()

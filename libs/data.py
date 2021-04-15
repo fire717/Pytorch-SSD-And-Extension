@@ -185,83 +185,159 @@ class TensorDatasetTestBackbone(Dataset):
 
 class DatasetTrainVal(Dataset):
 
-    def __init__(self, voc_dir, data_list, transform=None):
+    def __init__(self, data_type, voc_dir, data_sets, transform=None):
+        self.data_type = data_type
         self.voc_dir = voc_dir
-        self.data_list = data_list
+        self.data_sets = data_sets
         self.transform = transform
+
+        self._getDataList()
+
+
+    def _getDataList(self):
+        self.img_list = []
+        self.xml_list = []
+        if self.data_type == 'trainval':
+            name_file = 'trainval_part.txt'
+            for data_set in self.data_sets:
+                base_dir = os.path.join(self.voc_dir, data_set)
+                name_path = os.path.join(base_dir, "ImageSets","Main",name_file)
+                with open(name_path, 'r') as f:
+                    lines = f.readlines()
+                for line in lines:
+                    name = line.strip()
+                    img_path = os.path.join(base_dir, 'JPEGImages', name+".jpg")
+                    xml_path = os.path.join(base_dir, 'Annotations', name+'.xml')
+                    self.img_list.append(img_path)
+                    self.xml_list.append(xml_path)
+
+
+        elif self.data_type == 'train':
+            name_file = 'train.txt'
+            for data_set in self.data_sets:
+                base_dir = os.path.join(self.voc_dir, data_set)
+                name_path = os.path.join(base_dir, "ImageSets","Main",name_file)
+                with open(name_path, 'r') as f:
+                    lines = f.readlines()
+                for line in lines:
+                    name = line.strip()
+                    img_path = os.path.join(base_dir, 'JPEGImages', name+".jpg")
+                    xml_path = os.path.join(base_dir, 'Annotations', name+'.xml')
+                    self.img_list.append(img_path)
+                    self.xml_list.append(xml_path) 
+
+        elif self.data_type == 'val':
+            name_file = 'val.txt'
+            for data_set in self.data_sets:
+                base_dir = os.path.join(self.voc_dir, data_set)
+                name_path = os.path.join(base_dir, "ImageSets","Main",name_file)
+                with open(name_path, 'r') as f:
+                    lines = f.readlines()
+                for line in lines:
+                    name = line.strip()
+                    img_path = os.path.join(base_dir, 'JPEGImages', name+".jpg")
+                    xml_path = os.path.join(base_dir, 'Annotations', name+'.xml')
+                    self.img_list.append(img_path)
+                    self.xml_list.append(xml_path)           
 
 
     def __getitem__(self, index):
 
 
-        name = self.data_list[index]
-        img_path = os.path.join(self.voc_dir, 'JPEGImages', name+".jpg")
+        img_path = self.img_list[index]
+        # img_path = os.path.join(self.voc_dir, 'JPEGImages', name+".jpg")
+        # print(img_path)
         img = cv2.imread(img_path)
 
-        img = self.transform(img)
+        if self.transform:
+            img = self.transform(img)
 
-        xml_path = os.path.join(self.voc_dir, 'Annotations', name+'.xml')
-
+        # xml_path = os.path.join(self.voc_dir, 'Annotations', name+'.xml')
+        xml_path = self.xml_list[index]
+        # print(xml_path)
+        # b
         labels = readXML(xml_path)
 
         #print(np.array(labels).shape)
         # print(img.shape, torch.from_numpy(np.array(labels)).shape)
         #bb
-        return img, torch.from_numpy(np.array(labels)), len(labels), name
+        return img, torch.from_numpy(np.array(labels)), len(labels), img_path
         
     def __len__(self):
-        return len(self.data_list)
+        return len(self.img_list)
 
 
 
 class DatasetTest(Dataset):
 
-    def __init__(self, train_jpg, transform=None, distill=False):
-        self.train_jpg = train_jpg
-        if transform is not None:
-            self.transform = transform
-        else:
-            self.transform = None
-        self.distill = distill
-        if distill:
-            distill_path = r"save/good/result_distill.json"
-            print("distill path: ", distill_path)
-            with open(distill_path,'r') as f:
-                self.distill_dict = json.loads(f.readlines()[0])  
+    def __init__(self, data_type, voc_dir, data_sets, transform=None):
+        self.data_type = data_type
+        self.voc_dir = voc_dir
+        self.data_sets = data_sets
+        self.transform = transform
+
+        self._getDataList()
+
+
+    def _getDataList(self):
+        self.img_list = []
+        self.xml_list = []
+        if self.data_type == 'trainval':
+            name_file = 'trainval.txt'
+            for data_set in self.data_sets:
+                base_dir = os.path.join(self.voc_dir, data_set)
+                name_path = os.path.join(base_dir, "ImageSets","Main",name_file)
+                with open(name_path, 'r') as f:
+                    lines = f.readlines()
+                for line in lines:
+                    name = line.strip()
+                    img_path = os.path.join(base_dir, 'JPEGImages', name+".jpg")
+                    xml_path = os.path.join(base_dir, 'Annotations', name+'.xml')
+                    self.img_list.append(img_path)
+                    self.xml_list.append(xml_path)
+
+        #            
+
 
     def __getitem__(self, index):
 
-        #img = Image.open(self.train_jpg[index]).convert('RGB')
-        img = cv2.imread(self.train_jpg[index])
 
-        if self.transform is not None:
+        img_path = self.img_list[index]
+        # img_path = os.path.join(self.voc_dir, 'JPEGImages', name+".jpg")
+        # print(img_path)
+        img = cv2.imread(img_path)
+
+        if self.transform:
             img = self.transform(img)
 
-        # y = np.array([0,0,0], dtype=np.float32)
-        #print(self.train_jpg[index])
-        # if 'calling_images' in self.train_jpg[index]:
-        y = 0
-        if  'smok' in self.train_jpg[index] and 'call' in self.train_jpg[index]:
-            y = 3
-        elif  'normal' in self.train_jpg[index]:
-            y = 1
-        elif  'smok' in self.train_jpg[index]:
-            y = 2
-        # print(y)
+        # xml_path = os.path.join(self.voc_dir, 'Annotations', name+'.xml')
+        xml_path = self.xml_list[index]
+        # print(xml_path)
         # b
-        if self.distill:
-            y_onehot = [0,0,0,0]
-            y_onehot[y] = 1
-            y_onehot = np.array(y_onehot)
-            if os.path.basename(self.train_jpg[index]) in self.distill_dict:
-                y = y_onehot*0.6+np.array(self.distill_dict[os.path.basename(self.train_jpg[index])])*0.4
-            else:
-                y = y_onehot*0.9 + (1-0.9)/4
-        return img, y
+        labels = readXML(xml_path)
+
+        #print(np.array(labels).shape)
+        # print(img.shape, torch.from_numpy(np.array(labels)).shape)
+        #bb
+        return img, torch.from_numpy(np.array(labels)), len(labels), img_path
         
     def __len__(self):
-        return len(self.train_jpg)
+        return len(self.img_list)
 
+
+
+class SubtractMeans(object):
+    def __init__(self, mean):
+        self.mean = np.array(mean, dtype=np.float32)
+
+    def __call__(self, img):
+        # image = image.astype(np.float32)
+        img = np.array(img, dtype=np.float32) - self.mean
+        img = torch.from_numpy(img)
+
+        img = img.permute(2,0,1) #hwc->chw
+
+        return img
 
 
 ###### 3. get data loader 
@@ -301,18 +377,38 @@ def collate_fn(batch_data):
     return batch_img, batch_box, batch_len_obj, batch_name
 
 
-def getDataLoader(mode, voc_dir, data_list, img_size, batch_size, kwargs):
+def getDataLoader(mode, voc_dir, data_sets, img_size, batch_size, kwargs):
     if platform.system() == "Windows":
         num_workers = 0
     else:
         num_workers = 4
 
 
-
     if mode=="train":
         
-        train_loader = torch.utils.data.DataLoader(DatasetTrainVal(voc_dir,
-                                                        data_list,
+        train_loader = torch.utils.data.DataLoader(DatasetTrainVal("trainval",
+                                                        voc_dir,
+                                                        data_sets,
+                                                        T.Compose([
+                                                            TrainDataAug(img_size, img_size),
+                                                            # SubtractMeans([123, 117, 104])#bgr
+                                                            T.ToTensor(),
+                                                            T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                                                        ])
+                                                    ),
+                                                    collate_fn = collate_fn,
+                                                    batch_size=batch_size, 
+                                                    shuffle=True, 
+                                                    **kwargs
+                                                    )
+
+        return train_loader
+
+    elif mode=="trainval":
+        
+        train_loader = torch.utils.data.DataLoader(DatasetTrainVal("train",
+                                                        voc_dir,
+                                                        data_sets,
                                                         T.Compose([
                                                             TrainDataAug(img_size, img_size),
                                                             T.ToTensor(),
@@ -325,12 +421,27 @@ def getDataLoader(mode, voc_dir, data_list, img_size, batch_size, kwargs):
                                                     **kwargs
                                                     )
 
+        val_loader = torch.utils.data.DataLoader(DatasetTrainVal("val",
+                                                        voc_dir,
+                                                        data_sets,
+                                                        T.Compose([
+                                                            ValTestDataAug(img_size, img_size),
+                                                            T.ToTensor(),
+                                                            T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                                                        ])
+                                                    ), 
+                                                    batch_size=batch_size, 
+                                                    shuffle=False, 
+                                                    num_workers=kwargs['num_workers'], 
+                                                    pin_memory=kwargs['pin_memory']
+                                                    )
 
-        return train_loader
+        return train_loader,val_loader
 
     elif mode=="val":
-        val_loader = torch.utils.data.DataLoader(DatasetTrainVal(voc_dir,
-                                                        data_list,
+        val_loader = torch.utils.data.DataLoader(DatasetTrainVal("val",
+                                                        voc_dir,
+                                                        data_sets,
                                                         T.Compose([
                                                             ValTestDataAug(img_size, img_size),
                                                             T.ToTensor(),
@@ -346,15 +457,16 @@ def getDataLoader(mode, voc_dir, data_list, img_size, batch_size, kwargs):
         return val_loader
 
     elif mode=="test":
-        test_loader = torch.utils.data.DataLoader(DatasetTest(voc_dir,
-                                                        data_list,
+        test_loader = torch.utils.data.DataLoader(DatasetTest("test",
+                                                        voc_dir,
+                                                        data_sets,
                                                         T.Compose([
                                                             ValTestDataAug(img_size, img_size),
                                                             T.ToTensor(),
                                                             T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
                                                         ])
                                                     ), 
-                                                    batch_size=batch_size, 
+                                                    batch_size=1, 
                                                     shuffle=False, 
                                                     num_workers=kwargs['num_workers'], 
                                                     pin_memory=kwargs['pin_memory']

@@ -148,6 +148,22 @@ class myLoss(nn.Module):
                             对于n>1，n取值为一个batch中n最多的数量
         obj_count: pad后的labels中实际由多少个框， [batchsize, 1]
         """
+        # print(location.shape,location[0][0])
+        # #[16, 8732, 4] [0.0000, 0.0000, 0.1993, 0.0000]
+        # b
+        # print(confidence.shape,confidence[0][0])
+        # #[16, 8732, 21] [0.0000, 1.7082, 0.7890, 0.0000, 1.1887, 0.0000, 0.2095, 0.0000, 0.6048,
+        # #0.0000, 0.0000, 0.4107, 0.0054, 2.9624, 0.0000, 0.0000, 0.2647, 1.6391,
+        # #0.0000, 0.0000, 1.6545]
+
+        # print(prior_boxes.shape,prior_boxes[0])
+        # #[8732, 4] [0.0132, 0.0132, 0.1000, 0.1000]
+
+        # print(labels.shape,labels[0][0])
+        # #[16, 14, 5] [ 0.1940,  0.3024,  0.6320,  1.0000, 14.0000]
+        # b
+
+
         batchsize = confidence.shape[0]
         prior_box_num = confidence.shape[1]
         # label_num = labels.shape[1]
