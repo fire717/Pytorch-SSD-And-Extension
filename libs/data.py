@@ -191,14 +191,15 @@ class DatasetTrainVal(Dataset):
         self.data_sets = data_sets
         self.transform = transform
 
+        self.img_list = []
+        self.xml_list = []
         self._getDataList()
 
 
     def _getDataList(self):
-        self.img_list = []
-        self.xml_list = []
+        
         if self.data_type == 'trainval':
-            name_file = 'trainval_part.txt'
+            name_file = 'trainval.txt'
             for data_set in self.data_sets:
                 base_dir = os.path.join(self.voc_dir, data_set)
                 name_path = os.path.join(base_dir, "ImageSets","Main",name_file)
@@ -238,7 +239,21 @@ class DatasetTrainVal(Dataset):
                     img_path = os.path.join(base_dir, 'JPEGImages', name+".jpg")
                     xml_path = os.path.join(base_dir, 'Annotations', name+'.xml')
                     self.img_list.append(img_path)
-                    self.xml_list.append(xml_path)           
+                    self.xml_list.append(xml_path)     
+
+        elif self.data_type == 'test':
+            name_file = 'test.txt'
+            for data_set in self.data_sets:
+                base_dir = os.path.join(self.voc_dir, data_set)
+                name_path = os.path.join(base_dir, "ImageSets","Main",name_file)
+                with open(name_path, 'r') as f:
+                    lines = f.readlines()
+                for line in lines:
+                    name = line.strip()
+                    img_path = os.path.join(base_dir, 'JPEGImages', name+".jpg")
+                    xml_path = os.path.join(base_dir, 'Annotations', name+'.xml')
+                    self.img_list.append(img_path)
+                    self.xml_list.append(xml_path)       
 
 
     def __getitem__(self, index):
@@ -248,6 +263,7 @@ class DatasetTrainVal(Dataset):
         # img_path = os.path.join(self.voc_dir, 'JPEGImages', name+".jpg")
         # print(img_path)
         img = cv2.imread(img_path)
+        h,w = img.shape[:2]
 
         if self.transform:
             img = self.transform(img)
@@ -261,7 +277,7 @@ class DatasetTrainVal(Dataset):
         #print(np.array(labels).shape)
         # print(img.shape, torch.from_numpy(np.array(labels)).shape)
         #bb
-        return img, torch.from_numpy(np.array(labels)), len(labels), img_path
+        return img, torch.from_numpy(np.array(labels)), len(labels), img_path, w, h
         
     def __len__(self):
         return len(self.img_list)
@@ -306,7 +322,8 @@ class DatasetTest(Dataset):
         # img_path = os.path.join(self.voc_dir, 'JPEGImages', name+".jpg")
         # print(img_path)
         img = cv2.imread(img_path)
-
+        h,w = img.shape[:2]
+        
         if self.transform:
             img = self.transform(img)
 
@@ -319,7 +336,7 @@ class DatasetTest(Dataset):
         #print(np.array(labels).shape)
         # print(img.shape, torch.from_numpy(np.array(labels)).shape)
         #bb
-        return img, torch.from_numpy(np.array(labels)), len(labels), img_path
+        return img, torch.from_numpy(np.array(labels)), len(labels), img_path,w, h
         
     def __len__(self):
         return len(self.img_list)
@@ -399,6 +416,7 @@ def getDataLoader(mode, voc_dir, data_sets, img_size, batch_size, kwargs):
                                                     collate_fn = collate_fn,
                                                     batch_size=batch_size, 
                                                     shuffle=True, 
+                                                    drop_last=True,
                                                     **kwargs
                                                     )
 
@@ -418,6 +436,7 @@ def getDataLoader(mode, voc_dir, data_sets, img_size, batch_size, kwargs):
                                                     collate_fn = collate_fn,
                                                     batch_size=batch_size, 
                                                     shuffle=True, 
+                                                    drop_last=True,
                                                     **kwargs
                                                     )
 
@@ -440,6 +459,24 @@ def getDataLoader(mode, voc_dir, data_sets, img_size, batch_size, kwargs):
 
     elif mode=="val":
         val_loader = torch.utils.data.DataLoader(DatasetTrainVal("val",
+                                                        voc_dir,
+                                                        data_sets,
+                                                        T.Compose([
+                                                            ValTestDataAug(img_size, img_size),
+                                                            T.ToTensor(),
+                                                            T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                                                        ])
+                                                    ), 
+                                                    batch_size=batch_size, 
+                                                    shuffle=False, 
+                                                    num_workers=kwargs['num_workers'], 
+                                                    pin_memory=kwargs['pin_memory']
+                                                    )
+
+        return val_loader
+
+    elif mode=="eval":
+        val_loader = torch.utils.data.DataLoader(DatasetTrainVal("test",
                                                         voc_dir,
                                                         data_sets,
                                                         T.Compose([

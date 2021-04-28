@@ -200,8 +200,8 @@ class myLoss(nn.Module):
             conf_t = conf_t.cuda()
 
         # wrap targets
-        loc_t = Variable(loc_t, requires_grad=False)
-        conf_t = Variable(conf_t, requires_grad=False)
+        # loc_t = Variable(loc_t, requires_grad=False)
+        # conf_t = Variable(conf_t, requires_grad=False)
 
         pos = conf_t > 0 #[batchsize, 8732]
         num_pos = pos.sum(dim=1, keepdim=True)
@@ -213,7 +213,7 @@ class myLoss(nn.Module):
         pos_idx = pos.unsqueeze(pos.dim()).expand_as(location) # [batch,num_priors,4]
         loc_pos = location[pos_idx].view(-1, 4)
         loc_t = loc_t[pos_idx].view(-1, 4)
-        loss_loc = F.smooth_l1_loss(loc_pos, loc_t, size_average=False)
+        loss_loc = F.smooth_l1_loss(loc_pos, loc_t, reduction='sum')
 
 
         ### confidence loss CE
@@ -260,7 +260,7 @@ class myLoss(nn.Module):
         # gt(0) 逐元素比较 大于0的为True 反之False
         targets_weighted = conf_t[(pos+neg).gt(0)] #anchor box中与标签iou满足重叠条件的正负样本框类别
         #[batchsize*(pos_idx+neg_idx),]
-        loss_conf = F.cross_entropy(conf_p, targets_weighted, size_average=False)
+        loss_conf = F.cross_entropy(conf_p, targets_weighted, reduction='sum')
         #F.cross_entropy(out, y) out没有经过softmax， y是标量
 
 

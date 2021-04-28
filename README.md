@@ -21,15 +21,15 @@ ssd.pytorch（下表简称SP）](https://github.com/amdegroot/ssd.pytorch)，本
 ### To Do
 
 - [x] base (loss func)
-- [] mAP评测
-- [] 对比数据预处理resize、crop、pad的效果
-- [] add relu or not
-- [] 参数初始化
-- [] other loss function
-- [] other nms
-- [] other structure（RFB、轻量级模型）
-- [] 单目标检测效果对比
-- [] ...
+- [ ] mAP评测
+- [ ] 对比数据预处理resize、crop、pad的效果
+- [ ] add relu or not
+- [ ] 参数初始化
+- [ ] other loss function
+- [ ] other nms
+- [ ] other structure（RFB、轻量级模型）
+- [ ] 单目标检测效果对比
+- [ ] ...
 
 
 ### Ref

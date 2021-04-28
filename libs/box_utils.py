@@ -1,7 +1,72 @@
 import numpy as np
 import torch
 
-
+def nms(boxes, scores, overlap=0.5, top_k=200):
+    """Apply non-maximum suppression at test time to avoid detecting too many
+    overlapping bounding boxes for a given object.
+    Args:
+        boxes: (tensor) The location preds for the img, Shape: [num_priors,4].
+        scores: (tensor) The class predscores for the img, Shape:[num_priors].
+        overlap: (float) The overlap thresh for suppressing unnecessary boxes.
+        top_k: (int) The Maximum number of box preds to consider.
+    Return:
+        The indices of the kept boxes with respect to num_priors.
+    """
+ 
+    keep = scores.new(scores.size(0)).zero_().long()
+    if boxes.numel() == 0:
+        return keep
+    x1 = boxes[:, 0]  #输入boxes的所有框的x1
+    y1 = boxes[:, 1]  #输入boxes的所有框的y1
+    x2 = boxes[:, 2]  #输入boxes的所有框的x2
+    y2 = boxes[:, 3]  #输入boxes的所有框的y2
+    area = torch.mul(x2 - x1, y2 - y1)
+    v, idx = scores.sort(0)  # sort in ascending order  小->大
+    # I = I[v >= 0.01]
+    idx = idx[-top_k:]  # indices of the top-k largest vals 取前200个大的
+    xx1 = boxes.new()
+    yy1 = boxes.new()
+    xx2 = boxes.new()
+    yy2 = boxes.new()
+    w = boxes.new()
+    h = boxes.new()
+ 
+    # keep = torch.Tensor()
+    count = 0
+    while idx.numel() > 0: #前top_k个框列表中若还有框
+        i = idx[-1]  # index of current largest val 取最大的框序号为i
+        # keep.append(i)
+        keep[count] = i #用keep列表记住取出的框的顺序
+        count += 1
+        if idx.size(0) == 1:
+            break
+        idx = idx[:-1]  # remove kept element from view 框序号列表中去掉当前最大的框序号
+        # load bboxes of next highest vals
+        xx1 = torch.index_select(x1, 0, idx) #xx1是 idx框中的x1
+        yy1 = torch.index_select(y1, 0, idx)#yy1是 idx框中的y1
+        xx2 = torch.index_select(x2, 0, idx)#xx2是 idx框中的x2
+        yy2 = torch.index_select(y2, 0, idx)#yy1是 idx框中的y2
+        # store element-wise max with next highest score
+        #print(x1[i])
+        xx1 = torch.clamp(xx1, min=x1[i].item())
+        yy1 = torch.clamp(yy1, min=y1[i].item())
+        xx2 = torch.clamp(xx2, max=x2[i].item())
+        yy2 = torch.clamp(yy2, max=y2[i].item())
+        # w.reshape_as(xx2)
+        # h.reshape_as(yy2)
+        w = xx2 - xx1
+        h = yy2 - yy1
+        # check sizes of xx1 and xx2.. after each iteration
+        w = torch.clamp(w, min=0.0)
+        h = torch.clamp(h, min=0.0)
+        inter = w*h
+        # IoU = i / (area(a) + area(b) - i)
+        rem_areas = torch.index_select(area, 0, idx)  # load remaining areas)
+        union = (rem_areas - inter) + area[i]
+        IoU = inter/union  # store result in iou  计算idx中所有框与当前分类置信度最大框的IOU
+        # keep only elements with an IoU <= overlap
+        idx = idx[IoU.le(overlap)] #idx中IoU大于overlap的框都去除
+    return keep, count#keep是同一类中，每个个体的框的序号，count则是个数
 
 def generateProirBox(num_prior_box=[4,6,6,6,4,4]):
     m = len(num_prior_box)

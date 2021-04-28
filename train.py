@@ -3,8 +3,10 @@ import torch.nn as nn
 import numpy as np
 import cv2
 import random
+import time
 
 import torch.optim as optim
+import torch.backends.cudnn as cudnn
 # import gc
 
 from libs.backbone import BackboneVGG16, SSD
@@ -16,7 +18,7 @@ from libs.box_utils import generateProirBox
 
 import os
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 
 
@@ -52,25 +54,28 @@ def getOptimizer(optims, model, learning_rate, weight_decay):
 def train(data_loader, epoch, total_epoch, model, criterion, device):
     # switch to evaluate mode
     model.train()
-
+    # print(model)
+    # b
     # loc_loss = 0
     # conf_loss = 0
     # trained_items = 0
     #print(len(data_loader.dataset), len(data_loader))#5011 209
     #b
+    t = time.time()
     for batch_idx, (img, labels, obj_count, file_name) in enumerate(data_loader):
         # print("\r",str(i)+"/"+str(test_loader.__len__()),end="",flush=True)
         # trained_items += img.shape[0]#batchsize、
         #print(file_name)
         # print(batch_idx ,img.shape[0])
         # b
-
+        t0 = time.time()
         img = img.to(device)
         labels = labels.to(device)
 
-
+        t1 = time.time()
         #print("train: --- ", img.shape, labels.shape)
         confidence, location = model(img)
+        t2 = time.time()
 
         prior_boxes = generateProirBox()
         prior_boxes = torch.from_numpy(prior_boxes).to(device) #[1, 8732, 4] [cx, cy, w, h]
@@ -81,7 +86,7 @@ def train(data_loader, epoch, total_epoch, model, criterion, device):
 
         optimizer.step() #更新参数
         optimizer.zero_grad()#把梯度置零
-
+        t3 = time.time()
         # batch_pred_score = pred_score.data.cpu().numpy()#.tolist()
         # print(batch_pred_score.shape)
         # print(np.max(batch_pred_score[0]), np.argmax(batch_pred_score[0]))
@@ -104,7 +109,9 @@ def train(data_loader, epoch, total_epoch, model, criterion, device):
                 loss_c.item()), 
                 end="",flush=True)
             # ETA   it/s
-
+        print(t0-t, t1-t0, t2-t1,t3-t2)
+        #0.000124 0.00208 0.8137 0.09182
+        t = time.time()
 
     return total_loss
 
@@ -117,11 +124,12 @@ if __name__ == '__main__':
     random_seed = 42
     seedReproducer(random_seed)
 
-    device = torch.device("cuda")
-    kwargs = {'num_workers': 1, 'pin_memory': True}
+    device_name = "cuda"
+    device = torch.device(device_name)
+    kwargs = {'num_workers': 4, 'pin_memory': True}
 
     batchsize = 24
-    epochs = 300
+    epochs = 30
 
     ### 2.data
     voc_dir = "../data/VOCdevkit/"
@@ -147,6 +155,11 @@ if __name__ == '__main__':
     pretrained_path = "./data/models/vgg16-397923af.pth"
     model = SSD(classes,  pretrained_path).to(device)
 
+    if device_name=='cuda':
+        print("Use gpu to train")
+        model = torch.nn.DataParallel(model)
+        #cudnn.benchmark = True
+        cudnn.deterministic = False
     # model_path = "data/save/ssd_e62_1.91127.pth"
     # model.load_state_dict(torch.load(model_path))
     #print(model)
@@ -164,8 +177,9 @@ if __name__ == '__main__':
 
         scheduler.step()
 
-        save_path = './data/save/ssd_e%d_%.5f.pth' % (epoch,train_loss)
-        torch.save(model.state_dict(), save_path)
+        if epoch%10 == 0:
+            save_path = './data/save/ssd_e%d_%.5f.pth' % (epoch,train_loss)
+            torch.save(model.state_dict(), save_path)
 
         print('\n')
 

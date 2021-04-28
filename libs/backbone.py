@@ -3,7 +3,7 @@ import torch.nn as nn
 # import torchvision.models as models
 
 # import torchvision.transforms as T
-
+import time
 import numpy as np
 import cv2
 import torch.nn.init as init
@@ -425,14 +425,20 @@ class SSD(nn.Module):
                                     )
         return classifier_layer, location_layer
         
-    def forward(self, img):        
+    def forward(self, img):    
+         
         features1 = self.features_layer1(img) # [n, 512, 38, 38]
+
         #https://blog.csdn.net/loovelj/article/details/106556851
+        t = time.time()
         features2 = self.features_layer2(features1) # [n, 1024, 19, 19]
+        print("forward time: ", time.time() -t)
+        
         features3 = self.features_layer3(features2) # [n, 512, 10, 10]
         features4 = self.features_layer4(features3) # [n, 256, 5, 5]
         features5 = self.features_layer5(features4) # [n, 256, 3, 3]
         features6 = self.features_layer6(features5) # [n, 256, 1, 1]
+        
 
         features1 = self.L2Norm(features1)
         classifier1 = self.classifier_layer1(features1)
@@ -497,6 +503,7 @@ class SSD(nn.Module):
         location = torch.cat([location1,location2,location3,location4,location5,location6], 1)
         #print(classifier.shape, location.shape)#torch.Size([1, 8732, 21]) torch.Size([1, 8732, 4])
         # b
+        
         return confidence, location
 
 
